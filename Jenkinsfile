@@ -1,105 +1,78 @@
 pipeline {
     agent any
-    tools{
-        jdk 'jdk17'
+    tools {
         maven 'maven3'
+        jdk 'jdk17'
     }
-    environment{
-        SCANNER_HOME= tool 'sonar-scanner'
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
     }
-
     stages {
-        stage('git-checkout') {
+        stage('Git-checkout') {
             steps {
                 git 'https://github.com/jaiswaladi246/secretsanta-generator.git'
             }
         }
-
-        stage('Code-Compile') {
+        stage('Compile') {
             steps {
-               sh "mvn clean compile"
+                sh "mvn compile"
             }
         }
-        
-        stage('Unit Tests') {
+        stage('Tests') {
             steps {
-               sh "mvn test"
+                sh "mvn test"
             }
         }
-        
-		stage('OWASP Dependency Check') {
+        stage('Sonarqube Analysis') {
             steps {
-               dependencyCheck additionalArguments: ' --scan ./ ', odcInstallation: 'DC'
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                withSonarQubeEnv('sonar') {
+                    sh """
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=santa \
+                        -Dsonar.projectKey=santa \
+                        -Dsonar.java.binaries=.
+                    """
+                }
             }
         }
-
-
-        stage('Sonar Analysis') {
+        stage('Owasp Scan') {
             steps {
-               withSonarQubeEnv('sonar'){
-                   sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Santa \
-                   -Dsonar.java.binaries=. \
-                   -Dsonar.projectKey=Santa '''
-               }
+                dependencyCheck additionalArguments: '--scan .', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-
-		 
-        stage('Code-Build') {
+        stage('Build') {
             steps {
-               sh "mvn clean package"
+                sh "mvn package"
             }
         }
-
-         stage('Docker Build') {
+        stage('Docker Build Image') {
             steps {
-               script{
-                   withDockerRegistry(credentialsId: 'docker-cred') {
-                    sh "docker build -t  santa123 . "
-                 }
-               }
+                script {
+                    withDockerRegistry([credentialsId: 'docker-cred', url: '']) {
+                        sh "docker build -t santa:latest ."
+                    }
+                }
             }
         }
-
-        stage('Docker Push') {
+        stage('Tag & Push docker Image') {
             steps {
-               script{
-                   withDockerRegistry(credentialsId: 'docker-cred') {
-                    sh "docker tag santa123 adijaiswal/santa123:latest"
-                    sh "docker push adijaiswal/santa123:latest"
-                 }
-               }
+                script {
+                    withDockerRegistry([credentialsId: 'docker-cred', url: '']) {
+                        sh "docker tag santa:latest rajaveludocker/santa:latest"
+                        sh "docker push rajaveludocker/santa:latest"
+                    }
+                }
             }
         }
-        
-        	 
-        stage('Docker Image Scan') {
+        stage('Deploy') {
             steps {
-               sh "trivy image adijaiswal/santa123:latest "
-            }
-        }}
-        
-         post {
-            always {
-                emailext (
-                    subject: "Pipeline Status: ${BUILD_NUMBER}",
-                    body: '''<html>
-                                <body>
-                                    <p>Build Status: ${BUILD_STATUS}</p>
-                                    <p>Build Number: ${BUILD_NUMBER}</p>
-                                    <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
-                                </body>
-                            </html>''',
-                    to: 'jaiswaladi246@gmail.com',
-                    from: 'jenkins@example.com',
-                    replyTo: 'jenkins@example.com',
-                    mimeType: 'text/html'
-                )
+                script {
+                    withDockerRegistry([credentialsId: 'docker-cred', url: '']) {
+                        sh "docker run -d -p 8081:8080 rajaveludocker/santa:latest"
+                    }
+                }
             }
         }
-		
-		
-
-    
+    }
 }
