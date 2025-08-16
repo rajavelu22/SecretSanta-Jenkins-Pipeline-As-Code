@@ -1,3 +1,6 @@
+# SecretSanta-Jenkins-Pipeline-As-Code
+Automated CI/CD pipeline that checks out code, runs tests, performs static security &amp; quality scans, builds a Docker image, pushes it to Docker Hub and deploys a container.
+
 # Secret Santa Generator Application :santa:
   
 A __secret santa generator web application__ built using __Spring Boot technologies__, __Thymeleaf views__, __JPA__, __H2 Database__, and more. The project features Spring Model, View, and Controller (MVC) architecture and Service and Repository layers.
